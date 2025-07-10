@@ -11,7 +11,7 @@ public class TourRepository
         _connectionString = configuration["ConnectionString:SQLiteConnection"];
     }
 
-    public List<Tour> GetPaged(int page, int pageSize, string orderBy, string orderDirection)
+    public List<Tour> GetPaged(int page, int pageSize, string orderBy, string orderDirection, string status)
     {
         List<Tour> tours = new List<Tour>();
 
@@ -25,6 +25,7 @@ public class TourRepository
                            u.Id AS GuideId, u.Username 
                     FROM Tours t 
                     INNER JOIN Users u ON t.GuideId = u.Id
+                    WHERE (@Status = '' OR t.Status = @Status)
                     ORDER BY {orderBy} {orderDirection} LIMIT @PageSize OFFSET @Offset";
             using SqliteCommand command = new SqliteCommand(query, connection);
             command.Parameters.AddWithValue("@PageSize", pageSize);

@@ -10,15 +10,17 @@ public class TourController : ControllerBase
 {
     private readonly TourRepository _tourRepo;
     private readonly UserRepository _userRepo;
+    private readonly ReservationRepository _reservationRepo;
 
     public TourController(IConfiguration configuration)
     {
         _tourRepo = new TourRepository(configuration);
         _userRepo = new UserRepository(configuration);
+        _reservationRepo = new ReservationRepository(configuration);
     }
 
     [HttpGet]
-    public ActionResult GetPaged([FromQuery] int guideId = 0, [FromQuery] int page = 1, [FromQuery] int pageSize = 10, [FromQuery] string orderBy = "Name", [FromQuery] string orderDirection = "ASC")
+    public ActionResult GetPaged([FromQuery] int guideId = 0, [FromQuery] int page = 1, [FromQuery] int pageSize = 10, [FromQuery] string orderBy = "Name", [FromQuery] string orderDirection = "ASC", [FromQuery] string status = "")
     {
         if (guideId > 0)
         {
@@ -40,7 +42,7 @@ public class TourController : ControllerBase
 
         try
         {
-            List<Tour> tours = _tourRepo.GetPaged(page, pageSize, orderBy, orderDirection);
+            List<Tour> tours = _tourRepo.GetPaged(page, pageSize, orderBy, orderDirection, status);
             int totalCount = _tourRepo.CountAll();
             Object result = new
             {
@@ -139,4 +141,106 @@ public class TourController : ControllerBase
             return Problem("An error occurred while deleting the tour.");
         }
     }
+
+    [HttpPost("{tourId}/reservations")]
+    public ActionResult CreateReservation(int tourId, [FromBody] Reservation reservationRequest, [FromQuery] int userId)
+    {
+        try
+        {
+            Reservation reservation = new Reservation
+            {
+                TourId = tourId,
+                UserId = userId,
+                NumberOfGuests = reservationRequest.NumberOfGuests,
+                ReservationDate = DateTime.Now,
+                Status = "Active"
+            };
+
+            Reservation created = _reservationRepo.Create(reservation);
+            return Ok(created);
+        }
+        catch (Exception)
+        {
+            return Problem("An error occurred while creating the reservation.");
+        }
+    }
+
+    [HttpGet("reservations")]
+    public ActionResult GetTouristReservations([FromQuery] int touristId)
+    {
+        try
+        {
+            if (touristId < 0)
+            {
+                return BadRequest("Tourist ID is required.");
+            }
+
+            List<Reservation> reservations = _reservationRepo.GetByUserId(touristId);
+            return Ok(reservations);
+        }
+        catch (Exception ex)
+        {
+            return Problem("An error occurred while fetching reservations.");
+        }
+    }
+
+    [HttpDelete("reservations/{reservationId}")]
+    public ActionResult CancelReservation(int reservationId, [FromQuery] int userId)
+    {
+        try
+        {
+            if(userId < 0)
+            {
+                return BadRequest("Valid user ID is required.");
+            }
+
+            User user = _userRepo.GetById(userId);
+            if(user == null)
+            {
+                return NotFound($"User with ID {userId} not found.");
+            }
+
+            Reservation reservation = _reservationRepo.GetById(reservationId);
+            if(reservation == null)
+            {
+                return NotFound($"Reservation with ID {reservationId} not found.");
+            }
+
+            if(reservation.UserId != userId)
+            {
+                return BadRequest("You can only cancel your own reservations.");
+            }
+
+            Tour tour = _tourRepo.GetById(reservation.TourId);
+            if(tour == null)
+            {
+                return Problem($"Tour with ID {reservation.TourId} not found for this reservation.");
+            }
+
+            DateTime tourStart = tour.DateTime;
+            DateTime now = DateTime.Now;
+            TimeSpan timeUntilTour = tourStart - now;
+
+            if(timeUntilTour.TotalHours < 24)
+            {
+                return BadRequest("Cannot cancel reservation less than 24 hours before tour start.");
+            }
+
+            bool isDeleted = _reservationRepo.CancelReservation(reservationId);
+            if(isDeleted)
+            {
+                return Ok("Reservation cancelled successfully.");
+            }
+            else
+            {
+                return Problem("Failed to cancel reservation.");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("CreateReservation error: " + ex.Message);
+            return Problem("An error occurred while cancelling the reservation.");
+        }
+    }
+
 }
