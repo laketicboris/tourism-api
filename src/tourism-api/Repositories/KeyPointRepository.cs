@@ -21,7 +21,7 @@ public class KeyPointRepository
 
             string query = @"
                     INSERT INTO KeyPoints (OrderPosition, Name, Description, ImageUrl, Latitude, Longitude, TourId)
-                    VALUES (@Order, @Name, @Description, @ImageUrl, @Latitude, @Latitude, @TourId);
+                    VALUES (@Order, @Name, @Description, @ImageUrl, @Latitude, @Longitude, @TourId);
                     SELECT LAST_INSERT_ROWID();";
             using SqliteCommand command = new SqliteCommand(query, connection);
             command.Parameters.AddWithValue("@Order", keyPoint.Order);
